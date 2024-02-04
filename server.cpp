@@ -7,9 +7,9 @@
 #include <string.h>      // Include for string manipulation
 #include <sys/socket.h>  // Include for socket-specific definitions
 #include <unistd.h>      // Include for POSIX operating system API
+#include <iostream>
 
-const int buffer_size = (1 << 20);
-
+const size_t buffer_size = (1 << 20);
 // Function to print a message to stderr without exiting the program
 static void msg(const char* msg) {
     fprintf(stderr, "%s\n", msg);
@@ -24,24 +24,32 @@ static void die(const char* msg) {
 
 // Function to handle communication with the connected client
 static void do_something(int connfd) {
-    char rbuf[buffer_size] = {};                   // Buffer to store data read from the client
-    int n = read(connfd, rbuf, sizeof(rbuf) - 1);  // Read data from the client
+    char* rbuf = new char[buffer_size];       // Buffer to store data read from the client
+    int n = read(connfd, rbuf, buffer_size);  // Read data from the client
     if (n < 0) {
         msg("read() error");  // Print error message if read fails
         return;               // Exit the function if read fails
     }
-    printf("%s\n", rbuf);  // Print the message received from the client
-    // char wbuf[] = "world";              // Response message to be sent to the client
-    // write(connfd, wbuf, strlen(wbuf));  // Send response message to the client
 
-    const char* httpResponse =
+    rbuf[n] = '\0';
+
+    printf("%s\n", rbuf);  // Print the message received from the client
+
+    const char* httpResponse =  // Response message to be sent to the client
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/html\r\n"
         "Connection: close\r\n"
         "\r\n"
         "<html><body><h1>Hello, World!</h1></body></html>\n";
 
-    ssize_t written = write(connfd, httpResponse, strlen(httpResponse));
+    ssize_t written = write(connfd, httpResponse, strlen(httpResponse));  // Send response message to the client
+
+    if (written < 0) {
+        msg("respnse failed");
+    }
+
+    delete[] rbuf;
+    rbuf = nullptr;
 }
 
 int main() {

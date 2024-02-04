@@ -38,13 +38,18 @@ int main() {
     char msg[] = "hello";         // Message to send
     write(fd, msg, strlen(msg));  // Send the message
 
-    char rbuf[buffer_size] = {};                   // Buffer for receiving response
+    char* rbuf = (char*)malloc(buffer_size);       // Buffer for receiving response
     ssize_t n = read(fd, rbuf, sizeof(rbuf) - 1);  // Read response into buffer
+
     if (n < 0) {
-        die("read");  // Exit if red failed
+        die("read");  // Exit if read failed
     }
 
     printf("server say: %s\n", rbuf);  // Print the server's response
     close(fd);                         // close the socket
+
+    // deleting memory from heap
+    delete rbuf;
+    rbuf = nullptr;
     return 0;
 }

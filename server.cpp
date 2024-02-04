@@ -8,6 +8,8 @@
 #include <sys/socket.h>  // Include for socket-specific definitions
 #include <unistd.h>      // Include for POSIX operating system API
 
+const int buffer_size = (1 << 20);
+
 // Function to print a message to stderr without exiting the program
 static void msg(const char* msg) {
     fprintf(stderr, "%s\n", msg);
@@ -22,15 +24,24 @@ static void die(const char* msg) {
 
 // Function to handle communication with the connected client
 static void do_something(int connfd) {
-    char rbuf[64] = {};                            // Buffer to store data read from the client
+    char rbuf[buffer_size] = {};                   // Buffer to store data read from the client
     int n = read(connfd, rbuf, sizeof(rbuf) - 1);  // Read data from the client
     if (n < 0) {
         msg("read() error");  // Print error message if read fails
         return;               // Exit the function if read fails
     }
-    printf("client says: %s\n", rbuf);  // Print the message received from the client
-    char wbuf[] = "world";              // Response message to be sent to the client
-    write(connfd, wbuf, strlen(wbuf));  // Send response message to the client
+    // printf("client says: %s\n", rbuf);  // Print the message received from the client
+    // char wbuf[] = "world";              // Response message to be sent to the client
+    // write(connfd, wbuf, strlen(wbuf));  // Send response message to the client
+
+    const char* httpResponse =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/html\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+        "<html><body><h1>Hello, World!</h1></body></html>\n";
+
+    ssize_t written = write(connfd, httpResponse, strlen(httpResponse));
 }
 
 int main() {
@@ -44,10 +55,11 @@ int main() {
     int val = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
 
-    struct sockaddr_in addr = {};       // Initialize socket address structure for IPv4
-    addr.sin_family = AF_INET;          // Address family for IPv4
-    addr.sin_port = htons(1234);        // Convert port number 1234 to network byte order
-    addr.sin_addr.s_addr = INADDR_ANY;  // Bind to all available interfaces
+    struct sockaddr_in addr = {};  // Initialize socket address structure for IPv4
+    addr.sin_family = AF_INET;     // Address family for IPv4
+    addr.sin_port = htons(1234);   // Convert port number 1234 to network byte order
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    // addr.sin_addr.s_addr = INADDR_ANY;  // Bind to all available interfaces
 
     // Bind the socket to the specified IP address and port
     int rv = bind(fd, (struct sockaddr*)&addr, sizeof(addr));

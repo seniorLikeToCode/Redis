@@ -8,6 +8,8 @@
 #include <sys/socket.h>  // Include for socket-specific definitions
 #include <unistd.h>      // Include for POSIX operating system api
 
+const int buffer_size = (1 << 20);
+
 // function to handle program exit upon failure
 static void die(const char* msg) {
     int err = errno;                         // Get the last error number
@@ -36,7 +38,7 @@ int main() {
     char msg[] = "hello";         // Message to send
     write(fd, msg, strlen(msg));  // Send the message
 
-    char rbuf[64] = {};                            // Buffer for receiving response
+    char rbuf[buffer_size] = {};                   // Buffer for receiving response
     ssize_t n = read(fd, rbuf, sizeof(rbuf) - 1);  // Read response into buffer
     if (n < 0) {
         die("read");  // Exit if red failed

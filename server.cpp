@@ -30,7 +30,7 @@ static void do_something(int connfd) {
         msg("read() error");  // Print error message if read fails
         return;               // Exit the function if read fails
     }
-    // printf("client says: %s\n", rbuf);  // Print the message received from the client
+    printf("%s\n", rbuf);  // Print the message received from the client
     // char wbuf[] = "world";              // Response message to be sent to the client
     // write(connfd, wbuf, strlen(wbuf));  // Send response message to the client
 

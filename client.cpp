@@ -1,15 +1,20 @@
-#include <arpa/inet.h>   // For network byte order conversions
-#include <netinet/ip.h>  // For IP protocol family
-#include <sys/socket.h>  // For socket-specific definitions
-#include <unistd.h>      // For POSIX operating system API
-#include <cerrno>        // For error number definitions
-#include <cstring>       // For string manipulation
-#include <iostream>      // For standard I/O
-#include <memory>        // For smart pointers
-#include <stdexcept>     // For standard exceptions
-#include <string>        // For std::string
+#include <arpa/inet.h>   // Include for network byte order conversions
+#include <errno.h>       // Include for error number definitions
+#include <netinet/ip.h>  // Include for IP protocol family
+#include <stdio.h>       // Include for standard input/output
+#include <stdlib.h>      // Include for general utilities like dynamic memory management
+#include <string.h>      // Include for string manipulation
+#include <sys/socket.h>  // Include for socket-specific definitions
+#include <unistd.h>      // Include for POSIX operating system API
+#include <cassert>       // asserting a statement
+#include <cstdint>       // Include for fixed width integer types
+#include <cstring>       // Include c++ string standard functions
+#include <iostream>      // Include I/O stream
+#include <memory>        // Including memory
+#include <stdexcept>     // Including standard exception
+#include <vector>        // Include vector
 
-const int buffer_size = (1 << 20);
+const int kMaxMsg = (1 << 20);
 
 // Function to throw a std::runtime_error with the last error number
 void die(const std::string& msg) {
@@ -54,6 +59,53 @@ int32_t write_all(int fd, const char* buf, size_t n) {
     return 0;
 }
 
+int32_t query(int fd, const std::string& text) {
+    // Check if the text length exceeds the maximum allowed size
+    if (text.length() > kMaxMsg) {
+        return -1;  // Return error if text is too long
+    }
+
+    std::vector<char> wbuf(4 + kMaxMsg);  // Allocate a buffer with space for the length prefix plus the text
+    uint32_t len = static_cast<uint32_t>(text.length());
+
+    std::memcpy(wbuf.data(), &len, 4);                          // Copy the length of the text to the first 4 bytes of the buffer
+    std::memcpy(wbuf.data() + 4, text.c_str(), text.length());  // Copy the actual text into the buffer, starting after the 4-byte length prefix
+
+    // Write the buffer the file description (network connection)
+    if (write_all(fd, wbuf.data(), 4 + len) != 0) {
+        return -1;  // Return error if the write operation failed
+    }
+
+    // Prepare a buffer to read the response; only allocate space for the header initially
+    std::vector<char> rbuf(kMaxMsg);
+
+    // Read the first 4 bytes to get the length of the incomming message
+    if (read_full(fd, rbuf.data(), 4) != 0) {
+        return -1;  // Return error if read fails
+    }
+
+    // Extract the length of the incomming message from the buffer
+    std::memcpy(&len, rbuf.data(), 4);  // little endian assumption
+
+    // Check if the reported length is greater than the maximum allowed size
+    if (len > kMaxMsg) {
+        std::cerr << "too long" << std::endl;
+        return -1;  // Return error if the read fails
+    }
+
+    // Read the body of the message into the buffer, starting right after the length prefix
+    if (read_full(fd, rbuf.data() + 4, len) != 0) {
+        return -1;  // Return error if read fails
+    }
+
+    // Null-terminate the received message to safely print it as a C-string
+    rbuf[4 + len] = '\0';
+
+    // Print the message received from the server
+    std::cout << "server says: " << rbuf.data() + 4 << std::endl;
+    return 0;  // Return success
+}
+
 int main() {
     try {
         // Create TCP socket using IPv4
@@ -72,20 +124,10 @@ int main() {
             die("connect failed");
         }
 
-        std::string msg = "hello";  // Message to send
-        if (write(fd, msg.c_str(), msg.size()) < 0) {
-            die("write failed");
+        // Making multiple requests
+        if (query(fd, "hello1") || query(fd, "hello2") || query(fd, "hello3")) {
+            die("Query failed");
         }
-
-        auto rbuf = std::make_unique<char[]>(buffer_size);  // Buffer for receiving response
-        ssize_t n = read(fd, rbuf.get(), buffer_size);      // Read response into buffer
-
-        if (n < 0) {
-            die("read failed");
-        }
-        rbuf[n] = '\0';  // Ensure null-termination
-
-        std::cout << "Server says: " << rbuf.get() << std::endl;  // Print the server's response
 
         close(fd);  // Close the socket
     } catch (const std::exception& e) {

@@ -86,11 +86,11 @@ int32_t one_request(int connfd) {
     rbuf[4 + len] = '\0';  // Null-terminate the received message from pointing
     std::cout << "Client says: " << &rbuf[4] << std::endl;
 
-    const char reply[] = "world";                 // Prepare the reply message
-    char wbuf[4 + sizeof(reply)];                 // Buffer for the reply, including the length prefix
-    len = static_cast<unint32_t>(strlen(reply));  // Recalculate 'len' for reply
-    memcpy(wbuf, &len, 4);                        // Prefix the reply with its length
-    memcpy(wbuf[4], reply, len);                  // Copy the reply message itself
+    const char reply[] = "world";                // Prepare the reply message
+    char wbuf[4 + sizeof(reply)];                // Buffer for the reply, including the length prefix
+    len = static_cast<uint32_t>(strlen(reply));  // Recalculate 'len' for reply
+    memcpy(wbuf, &len, 4);                       // Prefix the reply with its length
+    memcpy(&wbuf[4], reply, len);                // Copy the reply message itself
 
     return write_all(connfd, wbuf, 4 + len);  // Send the reply back to the client
 }
@@ -109,10 +109,10 @@ int main() {
             die("setsocketop() failed");
         }
 
-        struct sockaddr_in addr = {};              // Initialize socket address structure for IPv4
-        addr.sin_family = AF_INET;                 // Address family for IPv4
-        addr.sin_port = htons(1234);               // Convert port number 1234 to network byte order
-        addr.sin_addr.s_addr = htnol(INADDR_ANY);  // Bind to all available interfaces
+        struct sockaddr_in addr = {};       // Initialize socket address structure for IPv4
+        addr.sin_family = AF_INET;          // Address family for IPv4
+        addr.sin_port = htons(1234);        // Convert port number 1234 to network byte order
+        addr.sin_addr.s_addr = INADDR_ANY;  // Bind to all available interfaces
 
         // Bind the socket to the specified IP address and port
         if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {

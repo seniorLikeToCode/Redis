@@ -1,50 +1,98 @@
 #include <arpa/inet.h>   // Include for network byte order conversions
 #include <errno.h>       // Include for error number definitions
 #include <netinet/ip.h>  // Include for IP protocol family
-#include <stdint.h>      // Include for fixed width integer types
 #include <stdio.h>       // Include for standard input/output
 #include <stdlib.h>      // Include for general utilities like dynamic memory management
 #include <string.h>      // Include for string manipulation
 #include <sys/socket.h>  // Include for socket-specific definitions
 #include <unistd.h>      // Include for POSIX operating system API
+#include <cassert>       // asserting a statement
+#include <cstdint>       // Include for fixed width integer types
 #include <cstring>       // Include c++ string standard functions
 #include <iostream>      // Include I/O stream
 #include <memory>        // Including memory
 #include <stdexcept>     // Including standard exception
 #include <vector>        // Include vector
 
-const size_t buffer_size = (1 << 20);
+const size_t kMaxMsg = (1 << 20);  // Define the maximum message size
 
 // Function to throw a std::runtime_error with the last error number
-[[noreturn]] void die(const std::string& msg) {
+void die(const std::string& msg) {
     throw std::runtime_error(msg + " : " + std::strerror(errno));
 }
 
-// Function to handle communication with the connected client
-void do_something(int connfd) {
-    std::vector<char> rbuf(buffer_size);
-    ssize_t n = read(connfd, rbuf.data(), buffer_size);
+// function to read full content from a socket
+int32_t read_full(int fd, char* buf, size_t n) {
+    while (n > 0) {
+        // Attempt to read 'n' bytes from the file description 'fd' into the buffer 'buf'
+        ssize_t rv = read(fd, buf, n);
+        if (rv <= 0) return -1;  // Return error on read failure or unexpected EOF
 
-    if (n < 0) {
-        std::cerr << "read() error\n";
-        return;
+        // Ensure the read value is within expected bounds
+        assert(static_cast<size_t>(rv) <= n);
+
+        // Decrement 'n' by the number of bytes read and advance the buffer pointer
+        n -= static_cast<size_t>(rv);
+        buf += rv;
     }
 
-    rbuf[n] = '\0';
-    std::cout << rbuf.data() << std::endl;  // Logging Response from the client
+    return 0;
+}
 
-    const std::string httpResponse =  // Reponse to send
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/html\r\n"
-        "Connection: close\r\n"
-        "\r\n"
-        "<html><body><h1>Hello, World!</h1></body></html>\n";
+// Function to write the entire buffer to a socket
+int32_t write_all(int fd, const char* buf, size_t n) {
+    while (n > 0) {
+        // Attempt to write 'n' bytes from 'buf' to the file description 'fd'
+        ssize_t rv = write(fd, buf, n);
+        if (rv <= 0) {
+            return -1;  // Return error on write failure
+        }
 
-    ssize_t written = write(connfd, httpResponse.c_str(), httpResponse.size());  // send the response
+        // Ensure the written value is within expected bounds
+        assert(static_cast<size_t>(rv) <= n);
 
-    if (written < 0) {
-        std::cerr << "response failed\n";  // Exit if reponse failed
+        // Decrement 'n' by the number of bytes written and advance the buffer pointer
+        n -= static_cast<size_t>(rv);
+        buf += rv;
     }
+
+    return 0;
+}
+
+// Function to handle a single request from a connect client
+int32_t one_request(int connfd) {
+    char rbuf[kMaxMsg];  // Request buffer
+
+    // Read the first 4 bytes to get the message length
+    if (int32_t err = read_full(connfd, rbuf, 4); err) {
+        std::cerr << ((errno == 0) ? "EOF" : "read() error") << std::endl;
+        return err;  // Return error if read fails
+    }
+
+    uint32_t len = 0;
+    memcpy(&len, rbuf, 4);  // Copy the first 4 bytes to get the length of the incomming message
+
+    // check if the message length exceeds the maximum allowed size
+    if (len > kMaxMsg) {
+        std::cerr << "too long" << std::endl;
+        return -1;  // message to long
+    }
+
+    if (int32_t err = read_full(connfd, &rbuf[4], len); err) {  // Read the rest of the message based on the length specified
+        std::cerr << "read() error" << std::endl;
+        return err;  // Return error if read fails
+    }
+
+    rbuf[4 + len] = '\0';  // Null-terminate the received message from pointing
+    std::cout << "Client says: " << &rbuf[4] << std::endl;
+
+    const char reply[] = "world";                 // Prepare the reply message
+    char wbuf[4 + sizeof(reply)];                 // Buffer for the reply, including the length prefix
+    len = static_cast<unint32_t>(strlen(reply));  // Recalculate 'len' for reply
+    memcpy(wbuf, &len, 4);                        // Prefix the reply with its length
+    memcpy(wbuf[4], reply, len);                  // Copy the reply message itself
+
+    return write_all(connfd, wbuf, 4 + len);  // Send the reply back to the client
 }
 
 int main() {
@@ -61,11 +109,10 @@ int main() {
             die("setsocketop() failed");
         }
 
-        struct sockaddr_in addr = {};  // Initialize socket address structure for IPv4
-        addr.sin_family = AF_INET;     // Address family for IPv4
-        addr.sin_port = htons(1234);   // Convert port number 1234 to network byte order
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-        // addr.sin_addr.s_addr = INADDR_ANY;  // Bind to all available interfaces
+        struct sockaddr_in addr = {};              // Initialize socket address structure for IPv4
+        addr.sin_family = AF_INET;                 // Address family for IPv4
+        addr.sin_port = htons(1234);               // Convert port number 1234 to network byte order
+        addr.sin_addr.s_addr = htnol(INADDR_ANY);  // Bind to all available interfaces
 
         // Bind the socket to the specified IP address and port
         if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
@@ -83,12 +130,18 @@ int main() {
             int connfd = accept(fd, reinterpret_cast<struct sockaddr*>(&client_addr), &socklen);  // Accept a connection request
 
             if (connfd < 0) {
-                std::cerr << "accept() error\n";  // Print error message if accept fails
-                continue;                         // Continue to the next iteration of the loop if accept fails
+                std::cerr << "accept() error\n";
+                continue;  // skip to the next iteration on error
             }
 
-            do_something(connfd);  // Handle communication with the connected client
-            close(connfd);         // Close the connection
+            // Handle requests from the connected client
+            while (true) {
+                if (int32_t err = one_request(connfd); err) {
+                    break;  // Exit the loop if an error occurs
+                }
+            }
+
+            close(connfd);  // Close the connection
         }
     } catch (const std::exception& e) {
         std::cerr << "Exceptin: " << e.what() << std::endl;

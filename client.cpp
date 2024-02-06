@@ -12,8 +12,46 @@
 const int buffer_size = (1 << 20);
 
 // Function to throw a std::runtime_error with the last error number
-[[noreturn]] void die(const std::string& msg) {
+void die(const std::string& msg) {
     throw std::runtime_error(msg + ": " + std::strerror(errno));
+}
+
+// function to read full content from a socket
+int32_t read_full(int fd, char* buf, size_t n) {
+    while (n > 0) {
+        // Attempt to read 'n' bytes from the file description 'fd' into the buffer 'buf'
+        ssize_t rv = read(fd, buf, n);
+        if (rv <= 0) return -1;  // Return error on read failure or unexpected EOF
+
+        // Ensure the read value is within expected bounds
+        assert(static_cast<size_t>(rv) <= n);
+
+        // Decrement 'n' by the number of bytes read and advance the buffer pointer
+        n -= static_cast<size_t>(rv);
+        buf += rv;
+    }
+
+    return 0;
+}
+
+// Function to write the entire buffer to a socket
+int32_t write_all(int fd, const char* buf, size_t n) {
+    while (n > 0) {
+        // Attempt to write 'n' bytes from 'buf' to the file description 'fd'
+        ssize_t rv = write(fd, buf, n);
+        if (rv <= 0) {
+            return -1;  // Return error on write failure
+        }
+
+        // Ensure the written value is within expected bounds
+        assert(static_cast<size_t>(rv) <= n);
+
+        // Decrement 'n' by the number of bytes written and advance the buffer pointer
+        n -= static_cast<size_t>(rv);
+        buf += rv;
+    }
+
+    return 0;
 }
 
 int main() {

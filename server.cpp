@@ -1,18 +1,18 @@
-#include <arpa/inet.h>   // Include for network byte order conversions
-#include <errno.h>       // Include for error number definitions
-#include <netinet/ip.h>  // Include for IP protocol family
-#include <stdio.h>       // Include for standard input/output
-#include <stdlib.h>      // Include for general utilities like dynamic memory management
-#include <string.h>      // Include for string manipulation
-#include <sys/socket.h>  // Include for socket-specific definitions
-#include <unistd.h>      // Include for POSIX operating system API
-#include <cassert>       // asserting a statement
-#include <cstdint>       // Include for fixed width integer types
-#include <cstring>       // Include c++ string standard functions
-#include <iostream>      // Include I/O stream
-#include <memory>        // Including memory
-#include <stdexcept>     // Including standard exception
-#include <vector>        // Include vector
+#include <arpa/inet.h>   // For network byte order conversions
+#include <errno.h>       // For error number definitions
+#include <netinet/ip.h>  // For IP protocol family
+#include <stdio.h>       // For standard input/output
+#include <stdlib.h>      // For general utilities like dynamic memory management
+#include <string.h>      // For string manipulation
+#include <sys/socket.h>  // For socket-specific definitions
+#include <unistd.h>      // For POSIX operating system API
+#include <cassert>       // For asserting a statement
+#include <cstdint>       // For fixed-width integer types
+#include <cstring>       // For C++ string standard functions
+#include <iostream>      // For I/O stream
+#include <memory>        // For managing memory resources
+#include <stdexcept>     // For standard exceptions
+#include <vector>        // For working with vectors (dynamic arrays)
 
 const size_t kMaxMsg = (1 << 20);  // Define the maximum message size
 
